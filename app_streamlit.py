@@ -5,12 +5,28 @@ import streamlit as st
 
 st.set_page_config(page_title="AutoViral AI", page_icon="🎬")
 
-# ffmpeg statis (Streamlit Cloud tidak punya ffmpeg bawaan)
+# ffmpeg terbundel (Streamlit Cloud tidak bisa download ffmpeg)
 try:
-    import static_ffmpeg
-    static_ffmpeg.add_paths()
+    import imageio_ffmpeg
+    import shutil as _sh
+    _ff = imageio_ffmpeg.get_ffmpeg_exe()
+    _bin = "/tmp/ffbin"
+    os.makedirs(_bin, exist_ok=True)
+    _target = os.path.join(_bin, "ffmpeg")
+    if not os.path.exists(_target):
+        try:
+            os.symlink(_ff, _target)
+        except Exception:
+            _sh.copy2(_ff, _target)
+            os.chmod(_target, 0o755)
+    os.environ["PATH"] = _bin + os.pathsep + os.environ.get("PATH", "")
+    try:
+        from pydub import AudioSegment
+        AudioSegment.converter = _target
+    except Exception:
+        pass
 except Exception as e:
-    st.warning(f"⚠️ ffmpeg statis gagal dimuat: {e}")
+    st.warning(f"⚠️ ffmpeg gagal dimuat: {e}")
 
 import autoviral as av
 
