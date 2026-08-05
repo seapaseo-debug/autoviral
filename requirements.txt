@@ -1,4 +1,5 @@
-gradio
+streamlit
 yt-dlp
 pydub
 SpeechRecognition
+static-ffmpeg
