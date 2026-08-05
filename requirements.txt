@@ -2,4 +2,4 @@ streamlit
 yt-dlp
 pydub
 SpeechRecognition
-static-ffmpeg
+imageio-ffmpeg
