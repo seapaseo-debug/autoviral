@@ -1,6 +1,7 @@
 import os
 import queue
 import threading
+import time
 
 import telebot
 
@@ -39,9 +40,14 @@ def worker():
                 else:
                     bot.send_message(chat_id, f"✅ Selesai! {len(clips)} klip siap dipakai:")
                     for c in clips:
-                        with open(c, "rb") as f:
-                            bot.send_document(chat_id, f)
-                    bot.send_message(chat_id, "💡 Suka hasilnya? Bagikan bot ini ke teman kreator kamu! 🚀")
+                        for coba in range(3):
+                            try:
+                                with open(c, "rb") as f:
+                                    bot.send_document(chat_id, f)
+                                break
+                            except Exception:
+                                time.sleep(5)
+                    bot.send_message(chat_id, "💡 Suka hasilnya?\n🎬 Mau 7-15 klip + antrean prioritas? Order paket lengkap: http://lynk.id/lynkbyazl\n☕ Dukung bot tetap hidup: DANA 0857-7150-0091\n🚀 Bagikan bot ini ke teman kreator kamu!")
         except Exception as e:
             bot.send_message(chat_id, f"❌ Error: {e}")
         antrean.task_done()
