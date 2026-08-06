@@ -36,24 +36,52 @@ try:
 except Exception:
     av.GALLERY_DIR = av.OUTPUT_DIR
 
+# daftar "penyamaran" klien YouTube buat menghindari 403
+CLIENTS = ["ios,android", "tv,android_vr", "web,mweb"]
+
+def download_audio_lite(url):
+    if os.path.exists("audio_podcast.mp3"):
+        return "audio_podcast.mp3"
+    for clients in CLIENTS:
+        cmd = [
+            "yt-dlp", "-f", "bestaudio/best",
+            "--extractor-args", f"youtube:player_client={clients}",
+            "-x", "--audio-format", "mp3",
+            "--retries", "3",
+            "-o", "audio_podcast.%(ext)s",
+            url, "--quiet", "--no-warnings",
+        ]
+        subprocess.run(cmd, check=False)
+        if os.path.exists("audio_podcast.mp3"):
+            return "audio_podcast.mp3"
+    raise RuntimeError("YouTube memblokir download dari server ini (403).")
+
+def download_video_lite(url):
+    if os.path.exists("video_original.mp4"):
+        return True
+    for clients in CLIENTS:
+        cmd = [
+            "yt-dlp", "-f", "best[height<=480]/best",
+            "--merge-output-format", "mp4",
+            "--extractor-args", f"youtube:player_client={clients}",
+            "--retries", "3",
+            "-o", "video_original.mp4",
+            url, "--quiet", "--no-warnings",
+        ]
+        subprocess.run(cmd, check=False)
+        if os.path.exists("video_original.mp4"):
+            return True
+    return False
+
+# ganti downloader bawaan dengan versi anti-403
+av.download_audio = download_audio_lite
+
 st.title("🎬 AutoViral AI")
 st.caption("Tempel link YouTube → klip viral vertikal otomatis. (Versi gratis: 480p)")
 
 url = st.text_input("🔗 Link YouTube")
 durasi = st.number_input("⏱ Menit diproses", 1, 30, 10)
 jumlah = st.number_input("🎬 Jumlah klip", 1, 5, 3)
-
-def download_video_lite(link):
-    if os.path.exists("video_original.mp4"):
-        return
-    cmd = [
-        "yt-dlp", "-f", "best[height<=480]/best",
-        "--merge-output-format", "mp4",
-        "--retries", "5",
-        "-o", "video_original.mp4",
-        link, "--quiet", "--no-warnings",
-    ]
-    subprocess.run(cmd, check=False)
 
 if st.button("🚀 PROSES!", type="primary"):
     if not url or ("youtube.com" not in url and "youtu.be" not in url):
@@ -74,7 +102,9 @@ if st.button("🚀 PROSES!", type="primary"):
                 st.error("❌ Tidak ditemukan momen viral.")
                 st.stop()
             with st.spinner("✂️ Download video & potong klip..."):
-                download_video_lite(url)
+                if not download_video_lite(url):
+                    st.error("❌ YouTube memblokir download video dari server gratis (403). Coba link lain atau ulangi lagi.")
+                    st.stop()
                 av.cut_and_save(kandidat, url)
             clips = [
                 os.path.join(av.OUTPUT_DIR, f)
