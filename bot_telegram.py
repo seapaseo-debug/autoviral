@@ -188,7 +188,15 @@ def worker():
                 for c in outs:
                     kirim_file(chat_id, c)
                 bot.send_message(chat_id, "💡 Suka hasilnya? Bagikan bot ini ke teman kreator kamu! 🚀")
-                bot.send_message(chat_id, "🛒 Mau punya mesin ini sendiri di HP kamu?\nBeli script KlipViral + panduan lengkap: http://lynk.id/lynkbyazl/6m2qld7mlr4x\n💸 Bebas biaya bulanan — sekali bayar, pakai sepuasnya!")
+                pesan_akhir = (
+    "🛒 Mau punya mesin ini sendiri di HP kamu?\n"
+    "Beli script KlipViral + panduan: [http://lynk.id/lynkbyazl/6m2qld7mlr4x\n]"
+    "💸 Bebas biaya bulanan — sekali bayar, pakai sepuasnya!\n\n"
+    "🎙️ Mau hasil videomu makin jernih kayak kreator pro?\n"
+    "Cek rekomendasi Mic Wireless & Tripod murah di Shopee:\n"
+    "[https://s.shopee.co.id/6fgJGk56eY]"
+)
+bot.send_message(chat_id, pesan_akhir)
         except Exception as e:
             with open("debug.log", "a") as f:
                 f.write(traceback.format_exc() + "\n")
