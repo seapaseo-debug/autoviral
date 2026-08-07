@@ -270,15 +270,15 @@ def terima(m):
             bot.send_message(uid, "❌ Video terlalu pendek. Minimal 20 detik ya.")
             return
         if kuota_hari_ini(uid) < 1:
-            if dv > 900:
-                bot.send_message(uid, "⛔ Video di atas 15 menit khusus user Bintang ⭐. Pilih paket 👇", reply_markup=menu_paket())
+            if dv > 1800:
+                bot.send_message(uid, "⛔ Video di atas 30 menit khusus user Bintang ⭐. Pilih paket 👇", reply_markup=menu_paket())
                 return
             antrean.put((uid, teks, {"gratis": True, "durasi": 15}))
             bot.send_message(uid, f"📨 Link diterima! Posisi antrean: {antrean.qsize()}. Kamu dapat 2 klip gratis + 1 klip sensor kejutan. 😄")
         else:
             bot.send_message(uid, "⛔ Kuota gratis hari ini sudah dipakai. Besok gratis lagi! Atau lanjut sekarang pakai Bintang ⭐ 👇", reply_markup=menu_paket())
     else:
-        bot.send_message(uid, "🎬 *KlipViral Bot*\nKirim link YouTube (20 dtk - 15 mnt), aku potong jadi klip viral vertikal otomatis.\n🆓 Gratis 1x per hari: 2 klip 15 dtk + 1 klip sensor.\n⭐ Bintang: versi bersih & klip 30/60 dtk.", parse_mode="Markdown")
+        bot.send_message(uid, "🎬 *KlipViral Bot*\nKirim link YouTube (20 dtk - 30 mnt), aku potong jadi klip viral vertikal otomatis.\n🆓 Gratis 1x per hari: 2 klip 15 dtk + 1 klip sensor.\n⭐ Bintang: versi bersih & klip 30/60 dtk.", parse_mode="Markdown")
 
 print("🤖 Bot jalan...")
 bot.infinity_polling()
