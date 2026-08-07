@@ -133,7 +133,7 @@ def worker():
             av.cleanup()
             audio = av.download_audio(url)
             transkrip = av.transcribe_audio(audio, 10)
-            jumlah = 3 if paket["gratis"] else 5
+            jumlah = 5
             kandidat = av.analyze_viral(transkrip, jumlah)
             if not kandidat:
                 bot.send_message(chat_id, "❌ Maaf, tidak ditemukan momen viral di video ini.")
@@ -158,19 +158,23 @@ def worker():
                 antrean.task_done()
                 continue
             if paket["gratis"]:
-                best = outs[0]
-                vault_file = os.path.join(VAULT, f"best_{chat_id}.mp4")
-                os.replace(best, vault_file)
-                simpan_meta(chat_id, url=url, best=vault_file)
-                mulai_best = ambil_waktu(kandidat[0], KEYS_MULAI)
-                if mulai_best is not None:
-                    potong("video_original.mp4", mulai_best, dur, "preview_sensor.mp4", sensor=True)
-                    kirim_file(chat_id, "preview_sensor.mp4",
-                               caption="🔒 Ini momen PALING viral di videomu (skor tertinggi). Versi bersihnya cuma 3 ⭐!")
-                bot.send_message(chat_id, "✅ Ini 2 klip gratis kamu (15 detik):")
-                for c in outs[1:3]:
+                if len(outs) >= 2:
+                    best = outs[0]
+                    vault_file = os.path.join(VAULT, f"best_{chat_id}.mp4")
+                    os.replace(best, vault_file)
+                    simpan_meta(chat_id, url=url, best=vault_file)
+                    mulai_best = ambil_waktu(kandidat[0], KEYS_MULAI)
+                    if mulai_best is not None:
+                        potong("video_original.mp4", mulai_best, dur, "preview_sensor.mp4", sensor=True)
+                        kirim_file(chat_id, "preview_sensor.mp4",
+                                   caption="🔒 Ini momen PALING viral di videomu (skor tertinggi). Versi bersihnya cuma 3 ⭐!")
+                    free_clips = outs[1:3]
+                else:
+                    free_clips = outs
+                bot.send_message(chat_id, f"✅ Ini {len(free_clips)} klip gratis kamu ({dur} detik):")
+                for c in free_clips:
                     kirim_file(chat_id, c)
-                bot.send_message(chat_id, "💡 Mau versi bersih klip sensor di atas? Pencet tombol 👇", reply_markup=menu_paket())
+                bot.send_message(chat_id, "💡 Mau versi bersih & klip lebih panjang? Pencet tombol 👇", reply_markup=menu_paket())
                 tandai_pakai(chat_id)
             else:
                 simpan_meta(chat_id, url=url)
