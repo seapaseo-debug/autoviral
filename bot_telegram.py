@@ -194,31 +194,48 @@ def beli(c):
     uid = c.message.chat.id
     jenis = c.data.split("::")[1]
     meta = ambil_meta(uid)
+
+    def jawab(teks):
+        try:
+            bot.answer_callback_query(c.id, teks)
+        except Exception:
+            try:
+                bot.send_message(uid, teks)
+            except Exception:
+                pass
+
+    try:
+        bot.answer_callback_query(c.id)
+    except Exception:
+        pass
+
     if jenis == "unlock":
         best = meta.get("best")
         if not best or not os.path.exists(best):
-            bot.answer_callback_query(c.id, "Belum ada klip terkunci. Kirim link YouTube dulu ya.")
+            jawab("🔒 Belum ada klip terkunci. Kirim link YouTube dulu ya.")
             return
         judul, stars = "Buka versi bersih klip terbaik", 3
         payload = f"unlock::{uid}"
     else:
         url = meta.get("url")
         if not url:
-            bot.answer_callback_query(c.id, "Kirim link YouTube dulu ya.")
+            jawab("Kirim link YouTube dulu ya.")
             return
         dv = durasi_video(url)
         if dv > 3600:
-            bot.answer_callback_query(c.id, "Video maksimal 60 menit.")
+            jawab("Video maksimal 60 menit.")
             return
         judul = f"Paket 5 klip {jenis} detik"
         stars = 5 if jenis == "30" else 10
         payload = f"paket::{jenis}::{uid}"
-    bot.send_invoice(uid, title=judul,
-                     description="Pembayaran otomatis via Telegram Stars",
-                     invoice_payload=payload, provider_token="",
-                     currency="XTR",
-                     prices=[types.LabeledPrice("Stars", stars)])
-    bot.answer_callback_query(c.id)
+    try:
+        bot.send_invoice(uid, title=judul,
+                         description="Pembayaran otomatis via Telegram Stars",
+                         invoice_payload=payload, provider_token="",
+                         currency="XTR",
+                         prices=[types.LabeledPrice("Stars", stars)])
+    except Exception as e:
+        jawab(f"❌ Gagal membuat tagihan: {e}")
 
 @bot.pre_checkout_query_handler(func=lambda q: True)
 def pcq(q):
