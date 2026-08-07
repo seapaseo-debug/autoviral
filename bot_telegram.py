@@ -1,13 +1,17 @@
 import os
+import re
+import json
 import queue
 import threading
 import time
+import subprocess
+import traceback
 
 import telebot
+from telebot import types
 
 import autoviral as av
 
-# token dibaca dari file lokal (JANGAN taruh token di GitHub!)
 try:
     TOKEN = os.environ.get("BOT_TOKEN") or open("token.txt").read().strip()
 except Exception:
@@ -15,53 +19,249 @@ except Exception:
 
 bot = telebot.TeleBot(TOKEN)
 
+VAULT = "vault"
+os.makedirs(VAULT, exist_ok=True)
+KUOTA_FILE = "kuota.json"
+META_FILE = "meta_user.json"
+
+def baca_json(path, default):
+    try:
+        with open(path) as f:
+            return json.load(f)
+    except Exception:
+        return default
+
+def tulis_json(path, data):
+    with open(path, "w") as f:
+        json.dump(data, f)
+
+def kuota_hari_ini(uid):
+    d = baca_json(KUOTA_FILE, {})
+    u = d.get(str(uid))
+    if u and u.get("tanggal") == time.strftime("%Y-%m-%d"):
+        return u.get("pakai", 0)
+    return 0
+
+def tandai_pakai(uid):
+    d = baca_json(KUOTA_FILE, {})
+    d[str(uid)] = {"tanggal": time.strftime("%Y-%m-%d"), "pakai": kuota_hari_ini(uid) + 1}
+    tulis_json(KUOTA_FILE, d)
+
+def simpan_meta(uid, url=None, best=None):
+    d = baca_json(META_FILE, {})
+    u = d.setdefault(str(uid), {})
+    if url:
+        u["url"] = url
+    if best:
+        u["best"] = best
+    tulis_json(META_FILE, d)
+
+def ambil_meta(uid):
+    return baca_json(META_FILE, {}).get(str(uid), {})
+
+def durasi_video(url):
+    try:
+        r = subprocess.run(["yt-dlp", "--no-warnings", "--skip-download",
+                            "--print", "%(duration)s", url],
+                           capture_output=True, text=True, timeout=120)
+        return float(r.stdout.strip() or 0)
+    except Exception:
+        return -1
+
+def detik(v):
+    if isinstance(v, (int, float)):
+        return float(v)
+    m = re.match(r"(\d+):(\d+(?:\.\d+)?)", str(v))
+    if m:
+        return int(m.group(1)) * 60 + float(m.group(2))
+    try:
+        return float(v)
+    except Exception:
+        return None
+
+def ambil_waktu(k, keys):
+    if isinstance(k, dict):
+        for key in keys:
+            if key in k:
+                t = detik(k[key])
+                if t is not None:
+                    return t
+    return None
+
+KEYS_MULAI = ["mulai", "start", "start_time", "waktu_mulai", "from"]
+
+def kirim_file(chat_id, path, caption=None, coba=3):
+    for i in range(coba):
+        try:
+            with open(path, "rb") as f:
+                bot.send_video(chat_id, f, caption=caption)
+            return True
+        except Exception:
+            time.sleep(5)
+    return False
+
+def potong(src, mulai, dur, out, sensor=False):
+    vf = "crop=ih*9/16:ih,scale=480:-2"
+    if sensor:
+        vf += ",boxblur=16:4"
+    cmd = ["ffmpeg", "-y", "-ss", str(mulai), "-i", src, "-t", str(dur),
+           "-vf", vf, "-c:v", "libx264", "-preset", "ultrafast", "-crf", "30",
+           "-c:a", "aac", "-b:a", "64k", out]
+    subprocess.run(cmd, capture_output=True)
+    return os.path.exists(out)
+
+def download_video(url, out="video_original.mp4"):
+    cmd = ["yt-dlp", "-f", "bv*[height<=480]+ba/b[height<=480]/b",
+           "--merge-output-format", "mp4", "-o", out, url]
+    subprocess.run(cmd, capture_output=True)
+    return os.path.exists(out)
+
+def menu_paket():
+    mk = types.InlineKeyboardMarkup()
+    mk.add(types.InlineKeyboardButton("⭐ 3 — Buka versi bersih klip sensor", callback_data="buy::unlock"))
+    mk.add(types.InlineKeyboardButton("⭐ 5 — 5 klip 30 detik", callback_data="buy::30"))
+    mk.add(types.InlineKeyboardButton("⭐ 10 — 5 klip 60 detik", callback_data="buy::60"))
+    return mk
+
 antrean = queue.Queue()
 
 def worker():
     while True:
-        chat_id, url = antrean.get()
+        chat_id, url, paket = antrean.get()
         try:
             bot.send_message(chat_id, "⏳ Video kamu lagi diproses... sabar 10-20 menit ya!")
             av.cleanup()
             audio = av.download_audio(url)
             transkrip = av.transcribe_audio(audio, 10)
-            kandidat = av.analyze_viral(transkrip, 3)
+            jumlah = 3 if paket["gratis"] else 5
+            kandidat = av.analyze_viral(transkrip, jumlah)
             if not kandidat:
                 bot.send_message(chat_id, "❌ Maaf, tidak ditemukan momen viral di video ini.")
+                antrean.task_done()
+                continue
+            if not download_video(url):
+                bot.send_message(chat_id, "❌ Gagal download video original.")
+                antrean.task_done()
+                continue
+            dur = paket["durasi"]
+            outs = []
+            for i, k in enumerate(kandidat):
+                mulai = ambil_waktu(k, KEYS_MULAI)
+                if mulai is None:
+                    continue
+                if potong("video_original.mp4", mulai, dur, f"klip_{i+1}.mp4"):
+                    outs.append(f"klip_{i+1}.mp4")
+            if not outs:
+                with open("debug.log", "a") as f:
+                    f.write("KANDIDAT: " + repr(kandidat) + "\n")
+                bot.send_message(chat_id, "❌ Gagal memotong klip. (detail di debug.log)")
+                antrean.task_done()
+                continue
+            if paket["gratis"]:
+                best = outs[0]
+                vault_file = os.path.join(VAULT, f"best_{chat_id}.mp4")
+                os.replace(best, vault_file)
+                simpan_meta(chat_id, url=url, best=vault_file)
+                mulai_best = ambil_waktu(kandidat[0], KEYS_MULAI)
+                if mulai_best is not None:
+                    potong("video_original.mp4", mulai_best, dur, "preview_sensor.mp4", sensor=True)
+                    kirim_file(chat_id, "preview_sensor.mp4",
+                               caption="🔒 Ini momen PALING viral di videomu (skor tertinggi). Versi bersihnya cuma 3 ⭐!")
+                bot.send_message(chat_id, "✅ Ini 2 klip gratis kamu (15 detik):")
+                for c in outs[1:3]:
+                    kirim_file(chat_id, c)
+                bot.send_message(chat_id, "💡 Mau versi bersih klip sensor di atas? Pencet tombol 👇", reply_markup=menu_paket())
+                tandai_pakai(chat_id)
             else:
-                av.cut_and_save(kandidat, url)
-                clips = [
-                    os.path.join(av.OUTPUT_DIR, f)
-                    for f in sorted(os.listdir(av.OUTPUT_DIR))
-                    if f.endswith(".mp4")
-                ]
-                if not clips:
-                    bot.send_message(chat_id, "❌ Gagal memotong klip.")
-                else:
-                    bot.send_message(chat_id, f"✅ Selesai! {len(clips)} klip siap dipakai:")
-                    for c in clips:
-                        for coba in range(3):
-                            try:
-                                with open(c, "rb") as f:
-                                    bot.send_document(chat_id, f)
-                                break
-                            except Exception:
-                                time.sleep(5)
-                    bot.send_message(chat_id, "💡 Suka hasilnya?\n🎬 Mau 7-15 klip + antrean prioritas? Order paket lengkap: http://lynk.id/lynkbyazl\n☕ Dukung bot tetap hidup: DANA 0857-7150-0091\n🚀 Bagikan bot ini ke teman kreator kamu!")
+                simpan_meta(chat_id, url=url)
+                bot.send_message(chat_id, f"✅ Selesai! {len(outs)} klip {dur} detik siap dipakai:")
+                for c in outs:
+                    kirim_file(chat_id, c)
+                bot.send_message(chat_id, "💡 Suka hasilnya? Bagikan bot ini ke teman kreator kamu! 🚀")
         except Exception as e:
-            bot.send_message(chat_id, f"❌ Error: {e}")
+            with open("debug.log", "a") as f:
+                f.write(traceback.format_exc() + "\n")
+            try:
+                bot.send_message(chat_id, f"❌ Error: {e}")
+            except Exception:
+                pass
         antrean.task_done()
 
 threading.Thread(target=worker, daemon=True).start()
 
+@bot.callback_query_handler(func=lambda c: c.data.startswith("buy::"))
+def beli(c):
+    uid = c.message.chat.id
+    jenis = c.data.split("::")[1]
+    meta = ambil_meta(uid)
+    if jenis == "unlock":
+        best = meta.get("best")
+        if not best or not os.path.exists(best):
+            bot.answer_callback_query(c.id, "Belum ada klip terkunci. Kirim link YouTube dulu ya.")
+            return
+        judul, stars = "Buka versi bersih klip terbaik", 3
+        payload = f"unlock::{uid}"
+    else:
+        url = meta.get("url")
+        if not url:
+            bot.answer_callback_query(c.id, "Kirim link YouTube dulu ya.")
+            return
+        dv = durasi_video(url)
+        if dv > 3600:
+            bot.answer_callback_query(c.id, "Video maksimal 60 menit.")
+            return
+        judul = f"Paket 5 klip {jenis} detik"
+        stars = 5 if jenis == "30" else 10
+        payload = f"paket::{jenis}::{uid}"
+    bot.send_invoice(uid, title=judul,
+                     description="Pembayaran otomatis via Telegram Stars",
+                     invoice_payload=payload, provider_token="",
+                     currency="XTR",
+                     prices=[types.LabeledPrice("Stars", stars)])
+    bot.answer_callback_query(c.id)
+
+@bot.pre_checkout_query_handler(func=lambda q: True)
+def pcq(q):
+    bot.answer_pre_checkout_query(q.id, ok=True)
+
+@bot.message_handler(content_types=["successful_payment"])
+def lunas(m):
+    uid = m.chat.id
+    bagian = m.successful_payment.invoice_payload.split("::")
+    if bagian[0] == "unlock":
+        meta = ambil_meta(uid)
+        best = meta.get("best")
+        if best and os.path.exists(best):
+            kirim_file(uid, best, caption="🎉 Ini versi bersih klip terbaikmu! Selamat berkarya!")
+        else:
+            bot.send_message(uid, "⚠️ File tidak ditemukan. Kirim link YouTube lagi ya.")
+    else:
+        dur = int(bagian[1])
+        url = ambil_meta(uid).get("url")
+        if url:
+            antrean.put((uid, url, {"gratis": False, "durasi": dur}))
+            bot.send_message(uid, f"🎉 Pembayaran diterima! 5 klip {dur} detik masuk antrean.")
+
 @bot.message_handler(func=lambda m: True)
 def terima(m):
+    uid = m.chat.id
     teks = (m.text or "").strip()
     if "youtube.com" in teks or "youtu.be" in teks:
-        antrean.put((m.chat.id, teks))
-        bot.send_message(m.chat.id, f"📨 Link diterima! Posisi antrean: {antrean.qsize()}. Aku kabari kalau klipnya siap ya.")
+        simpan_meta(uid, url=teks)
+        dv = durasi_video(teks)
+        if 0 < dv < 20:
+            bot.send_message(uid, "❌ Video terlalu pendek. Minimal 20 detik ya.")
+            return
+        if kuota_hari_ini(uid) < 1:
+            if dv > 900:
+                bot.send_message(uid, "⛔ Video di atas 15 menit khusus user Bintang ⭐. Pilih paket 👇", reply_markup=menu_paket())
+                return
+            antrean.put((uid, teks, {"gratis": True, "durasi": 15}))
+            bot.send_message(uid, f"📨 Link diterima! Posisi antrean: {antrean.qsize()}. Kamu dapat 2 klip gratis + 1 klip sensor kejutan. 😄")
+        else:
+            bot.send_message(uid, "⛔ Kuota gratis hari ini sudah dipakai. Besok gratis lagi! Atau lanjut sekarang pakai Bintang ⭐ 👇", reply_markup=menu_paket())
     else:
-        bot.send_message(m.chat.id, "🎬 *KlipViral Bot*\nKirim link YouTube di sini, aku potong jadi klip viral vertikal otomatis.\n(Gratis: 3 klip per video)", parse_mode="Markdown")
+        bot.send_message(uid, "🎬 *KlipViral Bot*\nKirim link YouTube (20 dtk - 15 mnt), aku potong jadi klip viral vertikal otomatis.\n🆓 Gratis 1x per hari: 2 klip 15 dtk + 1 klip sensor.\n⭐ Bintang: versi bersih & klip 30/60 dtk.", parse_mode="Markdown")
 
 print("🤖 Bot jalan...")
 bot.infinity_polling()
