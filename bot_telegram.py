@@ -158,22 +158,28 @@ def worker():
                 antrean.task_done()
                 continue
             if paket["gratis"]:
+                free_clips = []
+                mulai_best = ambil_waktu(kandidat[0], KEYS_MULAI)
+                selesai_best = ambil_waktu(kandidat[0], ["selesai", "end", "end_time", "waktu_selesai", "to"])
+                best = outs[0]
                 if len(outs) >= 2:
-                    best = outs[0]
-                    vault_file = os.path.join(VAULT, f"best_{chat_id}.mp4")
-                    os.replace(best, vault_file)
-                    simpan_meta(chat_id, url=url, best=vault_file)
-                    mulai_best = ambil_waktu(kandidat[0], KEYS_MULAI)
-                    if mulai_best is not None:
-                        potong("video_original.mp4", mulai_best, dur, "preview_sensor.mp4", sensor=True)
-                        kirim_file(chat_id, "preview_sensor.mp4",
-                                   caption="🔒 Ini momen PALING viral di videomu (skor tertinggi). Versi bersihnya cuma 3 ⭐!")
                     free_clips = outs[1:3]
+                elif mulai_best is not None and selesai_best is not None and (selesai_best - (mulai_best + dur)) >= 10:
+                    if potong("video_original.mp4", mulai_best + dur, min(dur, selesai_best - mulai_best - dur), "klip_tambahan.mp4"):
+                        free_clips = ["klip_tambahan.mp4"]
+                vault_file = os.path.join(VAULT, f"best_{chat_id}.mp4")
+                os.replace(best, vault_file)
+                simpan_meta(chat_id, url=url, best=vault_file)
+                if mulai_best is not None:
+                    potong("video_original.mp4", mulai_best, dur, "preview_sensor.mp4", sensor=True)
+                    kirim_file(chat_id, "preview_sensor.mp4",
+                               caption="🔒 Ini momen PALING viral di videomu (skor tertinggi). Versi bersihnya cuma 3 ⭐!")
+                if free_clips:
+                    bot.send_message(chat_id, f"✅ Ini {len(free_clips)} klip gratis kamu ({dur} detik):")
+                    for c in free_clips:
+                        kirim_file(chat_id, c)
                 else:
-                    free_clips = outs
-                bot.send_message(chat_id, f"✅ Ini {len(free_clips)} klip gratis kamu ({dur} detik):")
-                for c in free_clips:
-                    kirim_file(chat_id, c)
+                    bot.send_message(chat_id, "😅 Video ini cuma punya 1 momen viral. Versi bersihnya bisa dibuka pakai 3 ⭐!")
                 bot.send_message(chat_id, "💡 Mau versi bersih & klip lebih panjang? Pencet tombol 👇", reply_markup=menu_paket())
                 tandai_pakai(chat_id)
             else:
@@ -182,6 +188,7 @@ def worker():
                 for c in outs:
                     kirim_file(chat_id, c)
                 bot.send_message(chat_id, "💡 Suka hasilnya? Bagikan bot ini ke teman kreator kamu! 🚀")
+                bot.send_message(chat_id, "🛒 Mau punya mesin ini sendiri di HP kamu?\nBeli script KlipViral + panduan lengkap: http://lynk.id/lynkbyazl/6m2qld7mlr4x\n💸 Bebas biaya bulanan — sekali bayar, pakai sepuasnya!")
         except Exception as e:
             with open("debug.log", "a") as f:
                 f.write(traceback.format_exc() + "\n")
