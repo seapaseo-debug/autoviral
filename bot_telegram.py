@@ -24,6 +24,15 @@ os.makedirs(VAULT, exist_ok=True)
 KUOTA_FILE = "kuota.json"
 META_FILE = "meta_user.json"
 
+PESAN_AKHIR = (
+    "🛒 Mau punya mesin ini sendiri di HP kamu?\n"
+    "Beli script KlipViral + panduan: http://lynk.id/lynkbyazl/6m2qld7mlr4x\n"
+    "💸 Bebas biaya bulanan — sekali bayar, pakai sepuasnya!\n\n"
+    "🎙️ Mau hasil videomu makin jernih kayak kreator pro?\n"
+    "Cek rekomendasi Mic Wireless & Tripod murah di Shopee:\n"
+    "👉 https://s.shopee.co.id/6fgJGk56eY"
+)
+
 def baca_json(path, default):
     try:
         with open(path) as f:
@@ -89,6 +98,7 @@ def ambil_waktu(k, keys):
     return None
 
 KEYS_MULAI = ["mulai", "start", "start_time", "waktu_mulai", "from"]
+KEYS_SELESAI = ["selesai", "end", "end_time", "waktu_selesai", "to"]
 
 def kirim_file(chat_id, path, caption=None, coba=3):
     for i in range(coba):
@@ -133,8 +143,7 @@ def worker():
             av.cleanup()
             audio = av.download_audio(url)
             transkrip = av.transcribe_audio(audio, 10)
-            jumlah = 5
-            kandidat = av.analyze_viral(transkrip, jumlah)
+            kandidat = av.analyze_viral(transkrip, 5)
             if not kandidat:
                 bot.send_message(chat_id, "❌ Maaf, tidak ditemukan momen viral di video ini.")
                 antrean.task_done()
@@ -160,7 +169,7 @@ def worker():
             if paket["gratis"]:
                 free_clips = []
                 mulai_best = ambil_waktu(kandidat[0], KEYS_MULAI)
-                selesai_best = ambil_waktu(kandidat[0], ["selesai", "end", "end_time", "waktu_selesai", "to"])
+                selesai_best = ambil_waktu(kandidat[0], KEYS_SELESAI)
                 best = outs[0]
                 if len(outs) >= 2:
                     free_clips = outs[1:3]
@@ -173,7 +182,7 @@ def worker():
                 if mulai_best is not None:
                     potong("video_original.mp4", mulai_best, dur, "preview_sensor.mp4", sensor=True)
                     kirim_file(chat_id, "preview_sensor.mp4",
-                               caption="🔒 Ini momen PALING viral di videomu (skor tertinggi). Versi bersihnya cuma 3 ⭐!")
+                               caption=" Ini momen PALING viral di videomu (skor tertinggi). Versi bersihnya cuma 3 ⭐!")
                 if free_clips:
                     bot.send_message(chat_id, f"✅ Ini {len(free_clips)} klip gratis kamu ({dur} detik):")
                     for c in free_clips:
@@ -181,6 +190,7 @@ def worker():
                 else:
                     bot.send_message(chat_id, "😅 Video ini cuma punya 1 momen viral. Versi bersihnya bisa dibuka pakai 3 ⭐!")
                 bot.send_message(chat_id, "💡 Mau versi bersih & klip lebih panjang? Pencet tombol 👇", reply_markup=menu_paket())
+                bot.send_message(chat_id, PESAN_AKHIR)
                 tandai_pakai(chat_id)
             else:
                 simpan_meta(chat_id, url=url)
@@ -188,15 +198,7 @@ def worker():
                 for c in outs:
                     kirim_file(chat_id, c)
                 bot.send_message(chat_id, "💡 Suka hasilnya? Bagikan bot ini ke teman kreator kamu! 🚀")
-                pesan_akhir = (
-    "🛒 Mau punya mesin ini sendiri di HP kamu?\n"
-    "Beli script KlipViral + panduan: [http://lynk.id/lynkbyazl/6m2qld7mlr4x\n]"
-    "💸 Bebas biaya bulanan — sekali bayar, pakai sepuasnya!\n\n"
-    "🎙️ Mau hasil videomu makin jernih kayak kreator pro?\n"
-    "Cek rekomendasi Mic Wireless & Tripod murah di Shopee:\n"
-    "[https://s.shopee.co.id/6fgJGk56eY]"
-)
-bot.send_message(chat_id, pesan_akhir)
+                bot.send_message(chat_id, PESAN_AKHIR)
         except Exception as e:
             with open("debug.log", "a") as f:
                 f.write(traceback.format_exc() + "\n")
@@ -295,7 +297,7 @@ def terima(m):
             antrean.put((uid, teks, {"gratis": True, "durasi": 15}))
             bot.send_message(uid, f"📨 Link diterima! Posisi antrean: {antrean.qsize()}. Kamu dapat 2 klip gratis + 1 klip sensor kejutan. 😄")
         else:
-            bot.send_message(uid, "⛔ Kuota gratis hari ini sudah dipakai. Besok gratis lagi! Atau lanjut sekarang pakai Bintang ⭐ 👇", reply_markup=menu_paket())
+            bot.send_message(uid, "⛔ Kuota gratis hari ini sudah dipakai. Besok gratis lagi! Atau lanjut sekarang pakai Bintang ⭐ ", reply_markup=menu_paket())
     else:
         bot.send_message(uid, "🎬 *KlipViral Bot*\nKirim link YouTube (20 dtk - 30 mnt), aku potong jadi klip viral vertikal otomatis.\n🆓 Gratis 1x per hari: 2 klip 15 dtk + 1 klip sensor.\n⭐ Bintang: versi bersih & klip 30/60 dtk.", parse_mode="Markdown")
 
