@@ -363,7 +363,7 @@ def terima(m):
             bot.send_message(uid, "⛔ Maksimal video 2 jam. Kirim link yang lebih pendek ya.")
             return
         if dv > 3600:
-            bot.send_message(uid, "🎙️ Video panjang terdeteksi — kelas podcast! Paket gratis berlaku untuk video di bawah 30 menit. Untuk video panjang, Cek harganya spesial 👇", reply_markup=menu_podcast())
+            bot.send_message(uid, "🎙️ Video panjang terdeteksi — kelas podcast! Paket gratis berlaku untuk video di bawah 30 menit. Untuk video panjang, cek harganya spesial 👇", reply_markup=menu_podcast())
             return
         if dv > 1800:
             bot.send_message(uid, "⛔ Video di atas 30 menit khusus user Bintang ⭐. Pilih paket 👇", reply_markup=menu_paket(lengkap=False))
