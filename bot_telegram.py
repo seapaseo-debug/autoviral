@@ -356,7 +356,7 @@ def terima(m):
             return
         bot.send_message(uid, "🎬 Video terdeteksi! Pilih paket pengolahan 👇", reply_markup=menu_paket())
     else:
-        bot.send_message(uid, "🎬 *KlipViral Bot*\nKirim link YouTube (20 dtk - 30 mnt), aku potong jadi klip viral vertikal otomatis.\n🆓 Gratis 1x/hari: 1 klip 15 dtk + 1 klip sensor (wajib join Channel VIP).\n⭐ Bintang: versi bersih & klip 30/60 dtk.\n📢 Komunitas: " + LINK_CHANNEL, parse_mode="Markdown")
+        bot.send_message(uid, "🎬 KlipViral Bot\nKirim link YouTube (20 dtk - 30 mnt), aku potong jadi klip viral vertikal otomatis.\n🆓 Gratis 1x/hari: 1 klip 15 dtk + 1 klip sensor (wajib join Channel VIP).\n⭐ Bintang: versi bersih & klip 30/60 dtk.\n📢 Komunitas: " + LINK_CHANNEL)
 
 print("🤖 Bot jalan...")
 bot.infinity_polling()
