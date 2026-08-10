@@ -141,9 +141,15 @@ def download_video(url, out="video_original.mp4"):
 def menu_paket(lengkap=True):
     mk = types.InlineKeyboardMarkup()
     if lengkap:
-        mk.add(types.InlineKeyboardButton("🆓 Gratis — 15 dtk (3 klip Video)", callback_data="pick::free"))
+        mk.add(types.InlineKeyboardButton("🆓 Gratis — 15 dtk (3 klip video)", callback_data="pick::free"))
     mk.add(types.InlineKeyboardButton("⭐ 5 — 5 klip 30 detik", callback_data="buy::30"))
     mk.add(types.InlineKeyboardButton("⭐ 10 — 5 klip 60 detik", callback_data="buy::60"))
+    return mk
+
+def menu_podcast():
+    mk = types.InlineKeyboardMarkup()
+    mk.add(types.InlineKeyboardButton("⭐ 15 — 5 klip 30 detik", callback_data="buy::30"))
+    mk.add(types.InlineKeyboardButton("⭐ 25 — 5 klip 60 detik", callback_data="buy::60"))
     return mk
 
 def menu_unlock():
@@ -194,12 +200,10 @@ def worker():
                 mulai_best = ambil_waktu(kandidat[0], KEYS_MULAI)
                 selesai_best = ambil_waktu(kandidat[0], KEYS_SELESAI)
                 best = outs[0]
-                free_clip = None
-                if len(outs) >= 2:
-                    free_clip = outs[1]
-                elif mulai_best is not None and selesai_best is not None and (selesai_best - (mulai_best + dur)) >= 10:
+                free_clips = list(outs[1:3])
+                if len(free_clips) < 2 and mulai_best is not None and selesai_best is not None and (selesai_best - (mulai_best + dur)) >= 10:
                     if potong("video_original.mp4", mulai_best + dur, min(dur, selesai_best - mulai_best - dur), "klip_tambahan.mp4"):
-                        free_clip = "klip_tambahan.mp4"
+                        free_clips.append("klip_tambahan.mp4")
                 vault_file = os.path.join(VAULT, f"best_{chat_id}.mp4")
                 os.replace(best, vault_file)
                 simpan_meta(chat_id, url=url, best=vault_file)
@@ -207,9 +211,10 @@ def worker():
                     potong("video_original.mp4", mulai_best, dur, "preview_sensor.mp4", sensor=True)
                     kirim_file(chat_id, "preview_sensor.mp4",
                                caption="🔒 Ini momen PALING viral di videomu (skor tertinggi). Versi bersihnya cuma 3 ⭐!")
-                if free_clip:
+                if free_clips:
                     bot.send_message(chat_id, f"✅ Ini klip gratis kamu ({dur} detik):")
-                    kirim_file(chat_id, free_clip)
+                    for c in free_clips:
+                        kirim_file(chat_id, c)
                 else:
                     bot.send_message(chat_id, "😅 Video ini cuma punya 1 momen viral. Versi bersihnya bisa dibuka pakai 3 ⭐!")
                 bot.send_message(chat_id, "💡 Mau versi bersih & klip lebih panjang? Pencet tombol 👇", reply_markup=menu_unlock())
@@ -304,11 +309,14 @@ def beli(c):
             jawab("Kirim link YouTube dulu ya.")
             return
         dv = durasi_video(url)
-        if dv > 3600:
-            jawab("Video maksimal 60 menit.")
+        if dv > 7200:
+            jawab("⛔ Maksimal video 2 jam.")
             return
+        if dv > 3600:
+            stars = 15 if jenis == "30" else 25
+        else:
+            stars = 5 if jenis == "30" else 10
         judul = f"Paket 5 klip {jenis} detik"
-        stars = 5 if jenis == "30" else 10
         payload = f"paket::{jenis}::{uid}"
     try:
         bot.send_invoice(uid, title=judul,
@@ -351,12 +359,18 @@ def terima(m):
         if 0 < dv < 20:
             bot.send_message(uid, "❌ Video terlalu pendek. Minimal 20 detik ya.")
             return
+        if dv > 7200:
+            bot.send_message(uid, "⛔ Maksimal video 2 jam. Kirim link yang lebih pendek ya.")
+            return
+        if dv > 3600:
+            bot.send_message(uid, "🎙️ Video panjang terdeteksi — kelas podcast! Paket gratis berlaku untuk video di bawah 30 menit. Untuk video panjang, Cek harganya spesial 👇", reply_markup=menu_podcast())
+            return
         if dv > 1800:
             bot.send_message(uid, "⛔ Video di atas 30 menit khusus user Bintang ⭐. Pilih paket 👇", reply_markup=menu_paket(lengkap=False))
             return
         bot.send_message(uid, "🎬 Video terdeteksi! Pilih paket pengolahan 👇", reply_markup=menu_paket())
     else:
-        bot.send_message(uid, "🎬 KlipViral Bot\nKirim link YouTube (20 dtk - 30 mnt), aku potong jadi klip viral vertikal otomatis.\n🆓 Gratis 1x/hari: 3 klip 15 dtk (wajib join Channel VIP).\n⭐ Bintang: versi bersih & klip 30/60 dtk.\n📢 Komunitas: " + LINK_CHANNEL)
+        bot.send_message(uid, "🎬 KlipViral Bot\nKirim link YouTube (20 dtk - 2 jam), aku potong jadi klip viral vertikal otomatis.\n🆓 Gratis 3 klip 15 dtk (video ≤ 30 mnt, wajib join Channel VIP).\n⭐ Bintang: versi bersih & klip 30/60 dtk.\n🎙️ Podcast 1-2 jam: paket spesial ⭐15/⭐25.\n📢 Komunitas: " + LINK_CHANNEL)
 
 print("🤖 Bot jalan...")
 bot.infinity_polling()
