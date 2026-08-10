@@ -141,7 +141,7 @@ def download_video(url, out="video_original.mp4"):
 def menu_paket(lengkap=True):
     mk = types.InlineKeyboardMarkup()
     if lengkap:
-        mk.add(types.InlineKeyboardButton("🆓 Gratis — 15 dtk (1 klip + 1 sensor)", callback_data="pick::free"))
+        mk.add(types.InlineKeyboardButton("🆓 Gratis — 15 dtk (3 klip Video)", callback_data="pick::free"))
     mk.add(types.InlineKeyboardButton("⭐ 5 — 5 klip 30 detik", callback_data="buy::30"))
     mk.add(types.InlineKeyboardButton("⭐ 10 — 5 klip 60 detik", callback_data="buy::60"))
     return mk
@@ -356,7 +356,7 @@ def terima(m):
             return
         bot.send_message(uid, "🎬 Video terdeteksi! Pilih paket pengolahan 👇", reply_markup=menu_paket())
     else:
-        bot.send_message(uid, "🎬 KlipViral Bot\nKirim link YouTube (20 dtk - 30 mnt), aku potong jadi klip viral vertikal otomatis.\n🆓 Gratis 1x/hari: 1 klip 15 dtk + 1 klip sensor (wajib join Channel VIP).\n⭐ Bintang: versi bersih & klip 30/60 dtk.\n📢 Komunitas: " + LINK_CHANNEL)
+        bot.send_message(uid, "🎬 KlipViral Bot\nKirim link YouTube (20 dtk - 30 mnt), aku potong jadi klip viral vertikal otomatis.\n🆓 Gratis 1x/hari: 3 klip 15 dtk (wajib join Channel VIP).\n⭐ Bintang: versi bersih & klip 30/60 dtk.\n📢 Komunitas: " + LINK_CHANNEL)
 
 print("🤖 Bot jalan...")
 bot.infinity_polling()
