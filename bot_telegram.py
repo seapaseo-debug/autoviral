@@ -24,13 +24,18 @@ os.makedirs(VAULT, exist_ok=True)
 KUOTA_FILE = "kuota.json"
 META_FILE = "meta_user.json"
 
+CHANNEL_VIP = "@KlipViral_Id"
+LINK_CHANNEL = "https://t.me/KlipViral_Id"
+LINK_YOUTUBE = "https://www.youtube.com/@FUNNYORCHANNEL"
+LINK_TIKTOK = "https://www.tiktok.com/@allomesydan"
+LINK_FACEBOOK = "https://www.facebook.com/share/1BirQm2EcW/"
+
 PESAN_AKHIR = (
     "🛒 Mau punya mesin ini sendiri di HP kamu?\n"
     "Beli script KlipViral + panduan: http://lynk.id/lynkbyazl/6m2qld7mlr4x\n"
     "💸 Bebas biaya bulanan — sekali bayar, pakai sepuasnya!\n\n"
-    "🎙️ Mau hasil videomu makin jernih kayak kreator pro?\n"
-    "Cek rekomendasi Mic Wireless & Tripod murah di Shopee:\n"
-    "👉 https://s.shopee.co.id/6fgJGk56eY"
+    "🎬 Mau tutorial klip viral lainnya?\n"
+    "Gabung channel kami: " + LINK_CHANNEL
 )
 
 def baca_json(path, default):
@@ -67,6 +72,13 @@ def simpan_meta(uid, url=None, best=None):
 
 def ambil_meta(uid):
     return baca_json(META_FILE, {}).get(str(uid), {})
+
+def sudah_join(uid):
+    try:
+        st = bot.get_chat_member(CHANNEL_VIP, uid).status
+        return st in ("member", "administrator", "creator")
+    except Exception:
+        return False
 
 def durasi_video(url):
     try:
@@ -126,11 +138,23 @@ def download_video(url, out="video_original.mp4"):
     subprocess.run(cmd, capture_output=True)
     return os.path.exists(out)
 
-def menu_paket():
+def menu_paket(lengkap=True):
     mk = types.InlineKeyboardMarkup()
-    mk.add(types.InlineKeyboardButton("⭐ 3 — Buka versi bersih klip sensor", callback_data="buy::unlock"))
+    if lengkap:
+        mk.add(types.InlineKeyboardButton("🆓 Gratis — 15 dtk (1 klip + 1 sensor)", callback_data="pick::free"))
     mk.add(types.InlineKeyboardButton("⭐ 5 — 5 klip 30 detik", callback_data="buy::30"))
     mk.add(types.InlineKeyboardButton("⭐ 10 — 5 klip 60 detik", callback_data="buy::60"))
+    return mk
+
+def menu_unlock():
+    mk = types.InlineKeyboardMarkup()
+    mk.add(types.InlineKeyboardButton("⭐ 3 — Buka versi bersih klip sensor", callback_data="buy::unlock"))
+    return mk
+
+def menu_gerbang():
+    mk = types.InlineKeyboardMarkup()
+    mk.add(types.InlineKeyboardButton("🚪 Join Channel VIP", url=LINK_CHANNEL))
+    mk.add(types.InlineKeyboardButton("✅ Sudah join! Proses video saya", callback_data="gate::check"))
     return mk
 
 antrean = queue.Queue()
@@ -167,29 +191,28 @@ def worker():
                 antrean.task_done()
                 continue
             if paket["gratis"]:
-                free_clips = []
                 mulai_best = ambil_waktu(kandidat[0], KEYS_MULAI)
                 selesai_best = ambil_waktu(kandidat[0], KEYS_SELESAI)
                 best = outs[0]
+                free_clip = None
                 if len(outs) >= 2:
-                    free_clips = outs[1:3]
+                    free_clip = outs[1]
                 elif mulai_best is not None and selesai_best is not None and (selesai_best - (mulai_best + dur)) >= 10:
                     if potong("video_original.mp4", mulai_best + dur, min(dur, selesai_best - mulai_best - dur), "klip_tambahan.mp4"):
-                        free_clips = ["klip_tambahan.mp4"]
+                        free_clip = "klip_tambahan.mp4"
                 vault_file = os.path.join(VAULT, f"best_{chat_id}.mp4")
                 os.replace(best, vault_file)
                 simpan_meta(chat_id, url=url, best=vault_file)
                 if mulai_best is not None:
                     potong("video_original.mp4", mulai_best, dur, "preview_sensor.mp4", sensor=True)
                     kirim_file(chat_id, "preview_sensor.mp4",
-                               caption=" Ini momen PALING viral di videomu (skor tertinggi). Versi bersihnya cuma 3 ⭐!")
-                if free_clips:
-                    bot.send_message(chat_id, f"✅ Ini {len(free_clips)} klip gratis kamu ({dur} detik):")
-                    for c in free_clips:
-                        kirim_file(chat_id, c)
+                               caption="🔒 Ini momen PALING viral di videomu (skor tertinggi). Versi bersihnya cuma 3 ⭐!")
+                if free_clip:
+                    bot.send_message(chat_id, f"✅ Ini klip gratis kamu ({dur} detik):")
+                    kirim_file(chat_id, free_clip)
                 else:
                     bot.send_message(chat_id, "😅 Video ini cuma punya 1 momen viral. Versi bersihnya bisa dibuka pakai 3 ⭐!")
-                bot.send_message(chat_id, "💡 Mau versi bersih & klip lebih panjang? Pencet tombol 👇", reply_markup=menu_paket())
+                bot.send_message(chat_id, "💡 Mau versi bersih & klip lebih panjang? Pencet tombol 👇", reply_markup=menu_unlock())
                 bot.send_message(chat_id, PESAN_AKHIR)
                 tandai_pakai(chat_id)
             else:
@@ -209,6 +232,44 @@ def worker():
         antrean.task_done()
 
 threading.Thread(target=worker, daemon=True).start()
+
+@bot.callback_query_handler(func=lambda c: c.data.startswith("pick::"))
+def pilih(c):
+    uid = c.message.chat.id
+    try:
+        bot.answer_callback_query(c.id)
+    except Exception:
+        pass
+    if not ambil_meta(uid).get("url"):
+        bot.send_message(uid, "Kirim link YouTube dulu ya.")
+        return
+    if kuota_hari_ini(uid) >= 1:
+        bot.send_message(uid, "⛔ Kuota gratis hari ini sudah dipakai. Besok gratis lagi! Atau lanjut sekarang pakai Bintang ⭐ 👇", reply_markup=menu_paket(lengkap=False))
+        return
+    bot.send_message(uid,
+        "🎁 Klip gratismu hampir siap!\n"
+        "Untuk mencegah spam, join dulu Channel VIP kami & dukung sosial media kami:\n\n"
+        f"▶️ YouTube: {LINK_YOUTUBE}\n"
+        f"🎵 TikTok: {LINK_TIKTOK}\n"
+        f"📘 Facebook: {LINK_FACEBOOK}",
+        reply_markup=menu_gerbang())
+
+@bot.callback_query_handler(func=lambda c: c.data.startswith("gate::"))
+def gerbang(c):
+    uid = c.message.chat.id
+    try:
+        bot.answer_callback_query(c.id)
+    except Exception:
+        pass
+    if sudah_join(uid):
+        url = ambil_meta(uid).get("url")
+        if not url:
+            bot.send_message(uid, "Kirim link YouTube dulu ya.")
+            return
+        antrean.put((uid, url, {"gratis": True, "durasi": 15}))
+        bot.send_message(uid, f"📨 Terverifikasi! Posisi antrean: {antrean.qsize()}. Sabar 10-20 menit ya 😄")
+    else:
+        bot.send_message(uid, "👀 Eits, kamu belum join Channel VIP! Pencet tombol 🚪 dulu, lalu pencet ✅ lagi ya.")
 
 @bot.callback_query_handler(func=lambda c: c.data.startswith("buy::"))
 def beli(c):
@@ -290,16 +351,12 @@ def terima(m):
         if 0 < dv < 20:
             bot.send_message(uid, "❌ Video terlalu pendek. Minimal 20 detik ya.")
             return
-        if kuota_hari_ini(uid) < 1:
-            if dv > 1800:
-                bot.send_message(uid, "⛔ Video di atas 30 menit khusus user Bintang ⭐. Pilih paket 👇", reply_markup=menu_paket())
-                return
-            antrean.put((uid, teks, {"gratis": True, "durasi": 15}))
-            bot.send_message(uid, f"📨 Link diterima! Posisi antrean: {antrean.qsize()}. Kamu dapat 2 klip gratis + 1 klip sensor kejutan. 😄")
-        else:
-            bot.send_message(uid, "⛔ Kuota gratis hari ini sudah dipakai. Besok gratis lagi! Atau lanjut sekarang pakai Bintang ⭐ ", reply_markup=menu_paket())
+        if dv > 1800:
+            bot.send_message(uid, "⛔ Video di atas 30 menit khusus user Bintang ⭐. Pilih paket 👇", reply_markup=menu_paket(lengkap=False))
+            return
+        bot.send_message(uid, "🎬 Video terdeteksi! Pilih paket pengolahan 👇", reply_markup=menu_paket())
     else:
-        bot.send_message(uid, "🎬 *KlipViral Bot*\nKirim link YouTube (20 dtk - 30 mnt), aku potong jadi klip viral vertikal otomatis.\n🆓 Gratis 1x per hari: 2 klip 15 dtk + 1 klip sensor.\n⭐ Bintang: versi bersih & klip 30/60 dtk.", parse_mode="Markdown")
+        bot.send_message(uid, "🎬 *KlipViral Bot*\nKirim link YouTube (20 dtk - 30 mnt), aku potong jadi klip viral vertikal otomatis.\n🆓 Gratis 1x/hari: 1 klip 15 dtk + 1 klip sensor (wajib join Channel VIP).\n⭐ Bintang: versi bersih & klip 30/60 dtk.\n📢 Komunitas: " + LINK_CHANNEL, parse_mode="Markdown")
 
 print("🤖 Bot jalan...")
 bot.infinity_polling()
